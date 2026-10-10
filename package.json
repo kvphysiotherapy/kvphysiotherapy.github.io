@@ -1,0 +1,1 @@
+{"name":"kv-physiotherapy","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"node preview.mjs","build":"node --check dist/app.js && node --check netlify/functions/callback.mjs"},"engines":{"node":">=20"}}
