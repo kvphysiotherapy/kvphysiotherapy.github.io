@@ -7,14 +7,16 @@ const reviews = [
   { text: "The physiotherapy sessions after my mother's knee replacement surgery were very good and helpful. The therapist was supportive, patient, and guided her properly throughout the recovery. We saw good improvement in her knee movement, strength, and walking. Overall, we are very satisfied with the treatment and would highly recommend the therapist.", title: 'A mother’s recovery', by: 'Patient’s family' }
 ];
 const track = document.querySelector('#review-track');
-for (const review of reviews) {
+function createReviewCard(review) {
     const card = document.createElement('article'); card.className = 'review-card';
     const quote = document.createElement('span'); quote.className = 'quote-mark'; quote.textContent = '“'; quote.setAttribute('aria-hidden', 'true');
     const text = document.createElement('blockquote'); text.textContent = review.text;
     const footer = document.createElement('footer');
     const title = document.createElement('strong'); title.textContent = review.title;
-    footer.append(title, document.createTextNode(review.by)); card.append(quote, text, footer); track.append(card);
+    footer.append(title, document.createTextNode(review.by)); card.append(quote, text, footer);
+    return card;
 }
+for (const review of reviews) track.append(createReviewCard(review));
 document.querySelector('#year').textContent = new Date().getFullYear();
 const menu = document.querySelector('.menu-toggle'); const nav = document.querySelector('#navigation');
 menu.addEventListener('click', () => { const open = nav.classList.toggle('open'); menu.setAttribute('aria-expanded', String(open)); });
@@ -36,8 +38,8 @@ function showReview(index) {
 }
 function scheduleReview() {
   clearTimeout(reviewTimer);
-  if (!reviewPaused && reviewVisible && !reviewHovered && !document.hidden && !viewport.matches(':focus-within')) {
-    reviewTimer = setTimeout(() => { showReview(reviewIndex + 1); scheduleReview(); }, 1500);
+  if (!reviewPaused && reviewVisible && !reviewHovered && !document.hidden && !viewport.matches(':focus-within') && !document.querySelector('dialog[open]')) {
+    reviewTimer = setTimeout(() => { if (!document.querySelector('dialog[open]')) showReview(reviewIndex + 1); scheduleReview(); }, 1500);
   }
 }
 function updatePause() {
@@ -54,11 +56,33 @@ viewport.addEventListener('mouseleave', () => { reviewHovered = false; scheduleR
 viewport.addEventListener('focusin', scheduleReview);
 viewport.addEventListener('focusout', () => setTimeout(scheduleReview, 0));
 document.addEventListener('visibilitychange', scheduleReview);
+document.querySelectorAll('dialog').forEach(modal => modal.addEventListener('close', scheduleReview));
 reducedMotion.addEventListener('change', () => { reviewPaused = reducedMotion.matches; updatePause(); });
 if ('IntersectionObserver' in window) {
   new IntersectionObserver(entries => { reviewVisible = entries[0].isIntersecting; scheduleReview(); }, { threshold: 0.25 }).observe(viewport);
 } else { reviewVisible = true; }
 showReview(0); updatePause();
+const publicReviewIds = new Set();
+function addPublicReviews(rows) {
+  for (const row of rows) {
+    if (!row || typeof row.id !== 'string' || publicReviewIds.has(row.id) || typeof row.body !== 'string' || typeof row.display_name !== 'string') continue;
+    const card = createReviewCard({ text: row.body, title: row.display_name, by: 'Community review · Submitted by a visitor' });
+    card.hidden = true; card.dataset.reviewId = row.id;
+    publicReviewIds.add(row.id); track.append(card); cards.push(card);
+  }
+  showReview(reviewIndex);
+}
+// The form module receives the same renderer used by the slider.
+window.KV_REVIEWS = {
+  add: addPublicReviews,
+  remove(id) {
+    const index = cards.findIndex(card => card.dataset.reviewId === id);
+    if (index < 0) return;
+    const active = cards[reviewIndex]; cards[index].remove(); cards.splice(index, 1); publicReviewIds.delete(id);
+    showReview(Math.max(0, cards.indexOf(active)));
+  },
+  showLatest() { showReview(cards.length - 1); scheduleReview(); }
+};
 if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const observer = new IntersectionObserver(entries => { entries.forEach(entry => { if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); } }); }, { threshold: 0.08 });
   document.querySelectorAll('.reveal').forEach(section => { section.classList.add('js-reveal'); observer.observe(section); });
